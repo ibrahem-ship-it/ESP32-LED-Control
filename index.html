@@ -38,8 +38,9 @@
     <script>
         // إعدادات السيرفر
         const broker = "broker.hivemq.com";
-        const port = 8000; 
-        const myTopic = "robotech_esp32_iot_project_2026_final"; // اسم القناة السري الخاص بك
+        // تم تغيير البورت إلى المنفذ الآمن 8884
+        const port = 8884; 
+        const myTopic = "robotech_esp32_iot_project_2026_final"; 
         const clientId = "web_" + Math.random().toString(16).substr(2, 8);
         const client = new Paho.MQTT.Client(broker, port, clientId);
 
@@ -55,7 +56,8 @@
                 document.getElementById("status").innerText = "متصل بالإنترنت وجاهز!";
                 document.getElementById("status").style.color = "green";
             },
-            useSSL: false
+            // تم تفعيل الاتصال المشفر الآمن ليقبله المتصفح
+            useSSL: true 
         });
 
         // دالة إرسال ON و OFF
@@ -75,7 +77,6 @@
             let pass = document.getElementById("newPASS").value;
             
             if(ssid !== "" && pass !== "") {
-                // تجميع البيانات في رسالة واحدة بهذا الشكل: WIFI:NewName:NewPass
                 let payload = "WIFI:" + ssid + ":" + pass;
                 sendCommand(payload);
                 alert("تم إرسال بيانات الواي فاي الجديدة! شريحة ESP32 ستقوم بإعادة التشغيل الآن للاتصال بالشبكة الجديدة.");
