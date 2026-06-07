@@ -3,42 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تحكم ESP32 IoT</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <title>RoboTech IoT Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        .btn { padding: 15px 30px; font-size: 20px; cursor: pointer; margin: 10px; border-radius: 5px; color: white; border: none; }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 30px; background-color: #f4f4f9; }
+        .box { background: white; padding: 20px; border-radius: 10px; width: 80%; max-width: 400px; margin: 20px auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .btn { padding: 15px 30px; font-size: 18px; cursor: pointer; margin: 5px; border-radius: 5px; color: white; border: none; font-weight: bold; width: 45%; }
         .btn-on { background-color: #4CAF50; }
         .btn-off { background-color: #f44336; }
+        .btn-wifi { background-color: #2196F3; width: 95%; margin-top: 15px; }
+        input { width: 90%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; text-align: center; }
+        #status { font-weight: bold; color: #cc6600; margin-bottom: 20px; }
     </style>
 </head>
 <body>
-    <h1>التحكم في الإضاءة عبر الإنترنت</h1>
-    <button class="btn btn-on" onclick="controlLED(1)">تشغيل الليد (ON)</button>
-    <button class="btn btn-off" onclick="controlLED(0)">إيقاف الليد (OFF)</button>
+
+    <h1>لوحة تحكم RoboTech</h1>
+    <div id="status">جاري الاتصال بالسيرفر...</div>
+
+    <div class="box">
+        <h3>أوامر السيريال مونيتور</h3>
+        <button class="btn btn-on" onclick="sendCommand('ON')">ON</button>
+        <button class="btn btn-off" onclick="sendCommand('OFF')">OFF</button>
+    </div>
+
+    <div class="box">
+        <h3>تغيير شبكة الواي فاي للـ ESP32</h3>
+        <p style="font-size: 13px; color: red;">تحذير: إدخال بيانات خاطئة سيفصل الشريحة عن الإنترنت!</p>
+        <input type="text" id="newSSID" placeholder="اسم شبكة الواي فاي الجديدة">
+        <input type="text" id="newPASS" placeholder="الباسورد الجديد">
+        <button class="btn btn-wifi" onclick="changeWiFi()">إرسال بيانات الواي فاي</button>
+    </div>
 
     <script>
-        // بيانات مشروعك الحقيقية التي قمت بجلبها
-        const firebaseConfig = {
-            apiKey: "AIzaSyATgHCSNTwGVQgUrSuOWCTuYcvw6G2ZeaE",
-            authDomain: "esp32-led-control-28bef.firebaseapp.com",
-            databaseURL: "https://esp32-led-control-28bef-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "esp32-led-control-28bef",
-            storageBucket: "esp32-led-control-28bef.firebasestorage.app",
-            messagingSenderId: "726484303182",
-            appId: "1:726484303182:web:f355ae87f9f2b0764f321f"
+        // إعدادات السيرفر
+        const broker = "broker.hivemq.com";
+        const port = 8000; 
+        const myTopic = "robotech_esp32_iot_project_2026_final"; // اسم القناة السري الخاص بك
+        const clientId = "web_" + Math.random().toString(16).substr(2, 8);
+        const client = new Paho.MQTT.Client(broker, port, clientId);
+
+        client.onConnectionLost = (responseObject) => {
+            if (responseObject.errorCode !== 0) {
+                document.getElementById("status").innerText = "انقطع الاتصال بالإنترنت!";
+                document.getElementById("status").style.color = "red";
+            }
         };
 
-        // تهيئة Firebase
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        client.connect({
+            onSuccess: () => {
+                document.getElementById("status").innerText = "متصل بالإنترنت وجاهز!";
+                document.getElementById("status").style.color = "green";
+            },
+            useSSL: false
+        });
 
-        // دالة إرسال الأمر لقاعدة البيانات
-        function controlLED(status) {
-            database.ref('IoT_Device/LED_Status').set(status)
-                .then(() => console.log('تم التحديث بنجاح'))
-                .catch((error) => console.error("Error:", error));
+        // دالة إرسال ON و OFF
+        function sendCommand(value) {
+            if(client.isConnected()) {
+                const message = new Paho.MQTT.Message(value);
+                message.destinationName = myTopic;
+                client.send(message);
+            } else {
+                alert("الموقع غير متصل!");
+            }
+        }
+
+        // دالة إرسال بيانات الواي فاي الجديدة
+        function changeWiFi() {
+            let ssid = document.getElementById("newSSID").value;
+            let pass = document.getElementById("newPASS").value;
+            
+            if(ssid !== "" && pass !== "") {
+                // تجميع البيانات في رسالة واحدة بهذا الشكل: WIFI:NewName:NewPass
+                let payload = "WIFI:" + ssid + ":" + pass;
+                sendCommand(payload);
+                alert("تم إرسال بيانات الواي فاي الجديدة! شريحة ESP32 ستقوم بإعادة التشغيل الآن للاتصال بالشبكة الجديدة.");
+                document.getElementById("newSSID").value = "";
+                document.getElementById("newPASS").value = "";
+            } else {
+                alert("الرجاء كتابة اسم الشبكة والباسورد أولاً!");
+            }
         }
     </script>
 </body>
